@@ -1,97 +1,79 @@
-#include <Arduino.h>
+// Studi kasus yang saya buat adalah sebuah pendeteksi suhu suatu kamar
+// Jika kamar tersebut berada pada suhu 25 sampai 30 celcius maka akan menampilkan led lampu berwarna kuning
+// Jika kamar tersebut berada pada  24 celcius kebawah maka akan menampilkan led lampu berwarna biru
+// jika kamar tersebut berada pada suhu 30 celcius keatas maka akan menampilkan led lampu berwarna merah
+// Dan saya juga memakai fungsi analog write dalam melakukan set pada led lampu yang menyala pada suhu tertentu
+// untuk fungsi digital write saya memakai nya untuk mematikan lampu pada kondisi2 yang sudah saya set
+
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-const uint8_t pin[3] = {11, 10, 9}; // merah, kuning, hijau
-
-const byte MATI = 0x0;
-const byte HIDUP = 0x1;
-
-const uint8_t batas_kecerahan[3] = {50, 50, 50};
-
-int16_t kecerahan[3] = {0, 0, 0};
-
-bool arah[3] = {HIDUP, HIDUP, HIDUP};
-
-unsigned long last_on[3] = {0, 0, 0};
-
+// Hubungkan sensor DS18B20 ke pin A1
 OneWire oneWire(4);
-DallasTemperature SENSOR_SUHU(&oneWire);
+DallasTemperature sensors(&oneWire);
 
-void lampuDisco();
-float bacaSuhu(const char metric);
-void cetakSuhu();
+// Hubungkan lampu LED ke pin 11 (Merah), 10 (Kuning), dan 9 (Biru)
+int redLedPin = 11;
+int yellowLedPin = 10;
+int blueLedPin = 9;
 
-void setup(){
-  Serial.begin(115200);
-  SENSOR_SUHU.begin();
-
-  pinMode(pin[0], OUTPUT);
-  pinMode(pin[1], OUTPUT);
-  pinMode(pin[2], OUTPUT);
-
-}
-
-void loop(){
-  //lampuDisco();
-  cetakSuhu();
-}
-
-float bacaSuhu(const char metric){
-  SENSOR_SUHU.requestTemperatures(); 
-  float celcius = SENSOR_SUHU.getTempCByIndex(0);
-
-  if(metric == 'C'){
-    return celcius;
-  }
-  else{
-    return 0;
-  } 
-}
-
-unsigned long cetakSuhu_timer = 0;
-void cetakSuhu(){
-  unsigned long now = millis();
-  if( now - cetakSuhu_timer > 5000 ){
-    Serial.print("Celcius: ");
-    Serial.print(bacaSuhu('C'));
-    Serial.print(" - ");
-    Serial.print("Fahrenheit: ");
-    Serial.print(bacaSuhu('C'));
-    // Reamur, Kelvin
-    Serial.println();
-    
-    cetakSuhu_timer = now; //reset timer
-  }
-}
-
-void lampuDisco()
+void setup()
 {
-  unsigned long now = millis();
-  
-  for(uint8_t i = 0; i < 3; i++)
+  sensors.begin();
+  pinMode(redLedPin, OUTPUT);
+  pinMode(yellowLedPin, OUTPUT);
+  pinMode(blueLedPin, OUTPUT);
+  Serial.begin(9600);
+}
+
+void loop()
+{
+  sensors.requestTemperatures(); // Baca suhu dari sensor DS18B20
+
+  // Baca suhu dalam derajat Celsius
+  float temperatureC = sensors.getTempCByIndex(0);
+
+  // Konversi suhu ke Fahrenheit, Reamur, dan Kelvin
+  float temperatureF = (temperatureC * 9.0 / 5.0) + 32;
+  float temperatureR = temperatureC * 4.0 / 5.0;
+  float temperatureK = temperatureC + 273.15;
+
+  // Cek jika suhu di luar batas
+  if (temperatureC > 25.0 && temperatureC < 30.0)
   {
-    if(now - last_on[i] >= 25)
-    {
-      if(arah[i] == HIDUP)
-      {
-        analogWrite(pin[i], kecerahan[i]++);
-      }
-      else if(arah[i] == MATI)
-      {
-        analogWrite(pin[i], kecerahan[i]--);
-      }
-      
-      if(kecerahan[i] >= batas_kecerahan[i])
-      {
-        arah[i] = MATI;
-      }
-      else if(kecerahan[i] <= 0)
-      {
-        arah[i] = HIDUP;
-      }
-      
-      last_on[i] = now;
-    }
+    digitalWrite(redLedPin, LOW);
+    analogWrite(yellowLedPin, map(temperatureC, 25, 30, 0, 255));
+    digitalWrite(blueLedPin, LOW);
   }
+  else if (temperatureC < 24.0)
+  {
+    digitalWrite(redLedPin, LOW);
+    digitalWrite(yellowLedPin, LOW);
+    analogWrite(blueLedPin, map(temperatureC, 20, 25, 0, 255));
+  }
+  else
+  {
+    digitalWrite(redLedPin, 255);
+    digitalWrite(yellowLedPin, LOW);
+    analogWrite(blueLedPin, LOW);
+  }
+
+  // Tampilkan suhu dalam berbagai skala pada Serial Monitor
+  Serial.print("Suhu (Celsius): ");
+  Serial.print(temperatureC);
+  Serial.println(" °C");
+
+  Serial.print("Suhu (Fahrenheit): ");
+  Serial.print(temperatureF);
+  Serial.println(" °F");
+
+  Serial.print("Suhu (Reamur): ");
+  Serial.print(temperatureR);
+  Serial.println(" °Re");
+
+  Serial.print("Suhu (Kelvin): ");
+  Serial.print(temperatureK);
+  Serial.println(" K");
+
+  delay(2000);
 }
